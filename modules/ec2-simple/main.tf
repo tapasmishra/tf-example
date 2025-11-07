@@ -1,20 +1,21 @@
 # ---------- VPC ----------
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = { Name = "${var.instance_name}-vpc" }
+  tags = merge(var.tags, { Name = "${var.instance_name}-vpc" })
 }
 
 # ---------- Subnet ----------
 resource "aws_subnet" "public" {
+  count = length(data.aws_availability_zones.available.names)
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.subnet_cidr
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index + 1)
   map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
 
-  tags = { Name = "${var.instance_name}-public" }
+  tags = merge(var.tags, { Name = "${var.instance_name}-public" })
 }
 
 data "aws_availability_zones" "available" {
@@ -24,7 +25,7 @@ data "aws_availability_zones" "available" {
 # ---------- Internet Gateway ----------
 resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
-  tags   = { Name = "${var.instance_name}-igw" }
+  tags   = merge(var.tags, { Name = "${var.instance_name}-igw" })
 }
 
 # ---------- Route Table ----------
@@ -36,11 +37,12 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.gw.id
   }
 
-  tags = { Name = "${var.instance_name}-rt" }
+  tags = merge(var.tags, { Name = "${var.instance_name}-rt" })
 }
 
 resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.public.id
+  count = length(aws_subnet.public)
+  subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
 
@@ -74,7 +76,7 @@ resource "aws_security_group" "allow_ssh" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.instance_name}-sg" }
+  tags = merge(var.tags, { Name = "${var.instance_name}-sg" })
 }
 
 # ---------- SSH Key ----------
@@ -106,16 +108,25 @@ data "aws_ami" "ubuntu" {
 
 # ---------- EC2 Instance ----------
 resource "aws_instance" "vm" {
+  count                       = var.instance_count
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
+  subnet_id                   = aws_subnet.public[count.index % length(aws_subnet.public)].id
   key_name                    = aws_key_pair.generated.key_name
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.allow_ssh.id]
 
-  tags = {
-    Name = var.instance_name
+  tags = merge(var.tags, { Name = var.instance_name })
+
+  lifecycle {
+    ignore_changes = [
+      # Ignore changes to AMI as we want to use the latest on subsequent applies
+      ami,
+    ]
   }
 
-  # No user_data → just a plain Ubuntu VM
+  depends_on = [
+    aws_internet_gateway.gw,
+    aws_route_table_association.a
+  ]
 }

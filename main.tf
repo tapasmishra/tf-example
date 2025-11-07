@@ -19,4 +19,7 @@ module "simple_ec2" {
   aws_region       = var.aws_region
   subnet_cidr      = var.subnet_cidr
   ssh_allowed_ips  = var.ssh_allowed_ips
+  instance_count   = var.instance_count
+  key_name         = var.instance_name
+  vpc_cidr         = var.vpc_cidr
 }
