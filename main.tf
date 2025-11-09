@@ -22,4 +22,5 @@ module "simple_ec2" {
   instance_count   = var.instance_count
   key_name         = var.instance_name
   vpc_cidr         = var.vpc_cidr
+  tags             = var.tags
 }

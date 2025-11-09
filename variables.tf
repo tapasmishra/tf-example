@@ -29,11 +29,19 @@ variable "ssh_allowed_ips" {
 }
 
 variable "instance_count" {
+  description = "Number of instance required to provision"
   type        = number
   default     = 3
 }
 
 variable "vpc_cidr" {
+  description = "CIDR to be used for the VPC"
   type        = string
   default     = "10.0.0.0/16"
+}
+
+variable "tags" {
+  description = "Tags to be used with the resources"
+  type        = map(string)
+  default     = { "managed_by" = "Managed By wireguard" }
 }
